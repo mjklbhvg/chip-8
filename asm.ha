@@ -650,7 +650,7 @@ fn next_token(asm: *Assembler) Token = {
 			break;
 		};
 	};
-	let token_str = strings::fromutf8(asm.source[token_start..asm.cursor]);
+	let token_str = strings::fromutf8(asm.source[token_start..asm.cursor])!;
 	if (len(token_str) == 2 && strings::hasprefix(token_str, 'V')) {
 		let v = strconv::stou8b(strings::sub(token_str, 1, 2), 16);
 		if (v is u8) {
