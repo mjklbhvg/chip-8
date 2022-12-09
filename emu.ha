@@ -289,33 +289,35 @@ fn step(emu: *ProgramState) bool = {
 			emu.V[n1] = emu.V[n1] ^ emu.V[n2];
 		case 0x4 =>
 			// add
-			let result = (emu.V[n1] + emu.V[n2]): u16;
+			let result = (emu.V[n1]: u16 + emu.V[n2]: u16);
 			emu.V[n1] = result: u8;
-			emu.V[0xF] = if (result >> 8 == 0) {
+			emu.V[0xF] = if (result < 0x100) {
 				yield 0;
 			} else {
 				yield 1;
 			};
 		case 0x5 =>
 			// subtract y from x
-			emu.V[n1] = emu.V[n1] - emu.V[n2];
-			emu.V[0xF] = if (emu.V[n1] < emu.V[n2]) {
-				yield 0;
-			} else {
+			let not_borrow: u8 = if (emu.V[n1] > emu.V[n2]) {
 				yield 1;
+			} else {
+				yield 0;
 			};
+			emu.V[n1] = emu.V[n1] - emu.V[n2];
+			emu.V[0xF] = not_borrow;
 		case 0x6 =>
 			// shift right
 			emu.V[0xF] = emu.V[n1] & 1;
 			emu.V[n1] = emu.V[n1] >> 1;
 		case 0x7 =>
 			// subtract x from y
-			emu.V[n1] = emu.V[n2] - emu.V[n1];
-			emu.V[0xF] = if (emu.V[n2] < emu.V[n1]) {
-				yield 0;
-			} else {
+			let not_borrow: u8 = if (emu.V[n2] > emu.V[n1]) {
 				yield 1;
+			} else {
+				yield 0;
 			};
+			emu.V[n1] = emu.V[n2] - emu.V[n1];
+			emu.V[0xF] = not_borrow;
 		case 0xE =>
 			// shift left
 			emu.V[0xF] = emu.V[n1] & 0b10000000;
@@ -338,6 +340,7 @@ fn step(emu: *ProgramState) bool = {
 		emu.V[n1] = (math::random::u32n(&emu.rng, 0x100): u8) & b1;
 	case 0xD =>
 	// draw sprite
+	let f_register: u8 = 0;
 	for (let i = 0z; i < n3; i += 1) {
 		// the first byte alinged cell in the display buffer
 		// that will be modified by this sprite
@@ -357,7 +360,7 @@ fn step(emu: *ProgramState) bool = {
 		let new0 = (emu.memory[emu.I + i] >> x_offset);
 		let new1 = (emu.memory[emu.I + i] << (8 - x_offset));
 
-		emu.V[0xF] = if ((emu.frame_buffer[prev0] & new0) != 0) {
+		f_register |= if ((emu.frame_buffer[prev0] & new0) != 0) {
 			yield 1;
 		} else {
 			yield 0;
@@ -367,7 +370,7 @@ fn step(emu: *ProgramState) bool = {
 		// if the sprite overlaps with a second byte alinged column,
 		// draw that as well
 		if (emu.V[n1] % 8 != 0) {
-			emu.V[0xF] |= if ((emu.frame_buffer[prev1] & new1) != 0) {
+			f_register |= if ((emu.frame_buffer[prev1] & new1) != 0) {
 				yield 1;
 			} else {
 				yield 0;
@@ -375,6 +378,7 @@ fn step(emu: *ProgramState) bool = {
 			emu.frame_buffer[prev1] = new1 ^ emu.frame_buffer[prev1];
 		};
 	};
+	emu.V[0xF] = f_register;
 	case 0xE =>
 		switch (b1) {
 		case 0x9E =>
@@ -421,12 +425,12 @@ fn step(emu: *ProgramState) bool = {
 			emu.memory[emu.I + 2] = emu.V[n1] % 10;
 		case 0x55 =>
 			// store registers
-			for (let i = 0z; i < n1; i += 1) {
+			for (let i = 0z; i <= n1; i += 1) {
 				emu.memory[emu.I + i] = emu.V[i];
 			};
 		case 0x65 =>
 			// restore registers
-			for (let i = 0z; i < n1; i += 1) {
+			for (let i = 0z; i <= n1; i += 1) {
 				emu.V[i] = emu.memory[emu.I + i];
 			};
 		case => return false;
